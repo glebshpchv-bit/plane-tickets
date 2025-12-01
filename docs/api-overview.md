@@ -1,0 +1,507 @@
+Here is a YAML-formatted OpenAPI 3.0 specification for the core endpoints of a flight ticket booking system. This specification covers operations for searching flights, retrieving flight details, creating new bookings, and managing existing bookings (view, update, and cancel).
+
+```yaml
+openapi: 3.0.0
+info:
+  title: API для бронирования авиабилетов
+  description: |
+    API для поиска, бронирования и управления билетами на самолет.
+    Позволяет пользователям искать рейсы по различным критериям, создавать новые бронирования,
+    просматривать детали существующих бронирований, а также обновлять или отменять их.
+  version: 1.0.0
+servers:
+  - url: https://api.flights.example.com/v1
+    description: Production server
+  - url: http://localhost:8080/v1
+    description: Local development server
+tags:
+  - name: Рейсы
+    description: Операции, связанные с поиском и просмотром информации о рейсах.
+  - name: Бронирования
+    description: Операции, связанные с созданием и управлением бронированиями билетов.
+paths:
+  /flights:
+    get:
+      tags:
+        - Рейсы
+      summary: Поиск доступных рейсов
+      description: Позволяет искать рейсы по пункту отправления, назначения, датам и количеству пассажиров.
+      operationId: searchFlights
+      parameters:
+        - in: query
+          name: origin
+          schema:
+            type: string
+            example: SVO
+          required: true
+          description: Код аэропорта отправления (например, IATA код)
+        - in: query
+          name: destination
+          schema:
+            type: string
+            example: JFK
+          required: true
+          description: Код аэропорта назначения (например, IATA код)
+        - in: query
+          name: departureDate
+          schema:
+            type: string
+            format: date
+            example: "2023-10-26"
+          required: true
+          description: Дата вылета
+        - in: query
+          name: returnDate
+          schema:
+            type: string
+            format: date
+            example: "2023-11-01"
+          required: false
+          description: Дата возвращения (для двухсторонних рейсов)
+        - in: query
+          name: passengers
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 1
+            example: 2
+          required: false
+          description: Количество пассажиров
+      responses:
+        "200":
+          description: Успешный поиск, возвращает список рейсов.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Flight"
+        "400":
+          description: Некорректные параметры запроса.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /flights/{flightId}:
+    get:
+      tags:
+        - Рейсы
+      summary: Получение детальной информации о рейсе
+      description: Возвращает полную информацию о конкретном рейсе по его идентификатору.
+      operationId: getFlightById
+      parameters:
+        - in: path
+          name: flightId
+          schema:
+            type: string
+            format: uuid
+            example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+          required: true
+          description: Уникальный идентификатор рейса
+      responses:
+        "200":
+          description: Успешный запрос, возвращает информацию о рейсе.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flight"
+        "404":
+          description: Рейс с указанным ID не найден.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /bookings:
+    post:
+      tags:
+        - Бронирования
+      summary: Создание нового бронирования
+      description: Создает новое бронирование билетов для указанного рейса и пассажиров.
+      operationId: createBooking
+      requestBody:
+        description: Данные для создания бронирования.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingRequest"
+      responses:
+        "201":
+          description: Бронирование успешно создано.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: Некорректные данные запроса.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Указанный рейс не найден.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Места на рейсе отсутствуют или недостаточно.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /bookings/{bookingId}:
+    get:
+      tags:
+        - Бронирования
+      summary: Получение детальной информации о бронировании
+      description: Возвращает полную информацию о конкретном бронировании по его идентификатору.
+      operationId: getBookingById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          schema:
+            type: string
+            format: uuid
+            example: "01234567-89ab-cdef-1234-567890abcdef"
+          required: true
+          description: Уникальный идентификатор бронирования.
+      responses:
+        "200":
+          description: Успешный запрос, возвращает информацию о бронировании.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "401":
+          description: Неавторизованный запрос.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Бронирование с указанным ID не найдено.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      tags:
+        - Бронирования
+      summary: Обновление информации о бронировании
+      description: Позволяет обновлять контактную информацию или места пассажиров в существующем бронировании.
+      operationId: updateBooking
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          schema:
+            type: string
+            format: uuid
+            example: "01234567-89ab-cdef-1234-567890abcdef"
+          required: true
+          description: Уникальный идентификатор бронирования.
+      requestBody:
+        description: Данные для обновления бронирования.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingUpdateRequest"
+      responses:
+        "200":
+          description: Бронирование успешно обновлено.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: Некорректные данные запроса.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Неавторизованный запрос.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Бронирование с указанным ID не найдено.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Невозможно обновить бронирование (например, место занято).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Бронирования
+      summary: Отмена бронирования
+      description: Отменяет существующее бронирование билетов.
+      operationId: cancelBooking
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          schema:
+            type: string
+            format: uuid
+            example: "01234567-89ab-cdef-1234-567890abcdef"
+          required: true
+          description: Уникальный идентификатор бронирования.
+      responses:
+        "204":
+          description: Бронирование успешно отменено.
+        "401":
+          description: Неавторизованный запрос.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Бронирование с указанным ID не найдено.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Отмена бронирования невозможна (например, слишком близко к вылету).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Flight:
+      type: object
+      required:
+        - flightId
+        - airline
+        - flightNumber
+        - origin
+        - destination
+        - departureTime
+        - arrivalTime
+        - price
+        - availableSeats
+      properties:
+        flightId:
+          type: string
+          format: uuid
+          description: Уникальный идентификатор рейса.
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        airline:
+          type: string
+          description: Название авиакомпании.
+          example: "Aeroflot"
+        flightNumber:
+          type: string
+          description: Номер рейса.
+          example: "SU123"
+        origin:
+          type: string
+          description: Код аэропорта отправления.
+          example: "SVO"
+        destination:
+          type: string
+          description: Код аэропорта назначения.
+          example: "JFK"
+        departureTime:
+          type: string
+          format: date-time
+          description: Время отправления рейса в формате ISO 8601.
+          example: "2023-10-26T10:00:00Z"
+        arrivalTime:
+          type: string
+          format: date-time
+          description: Время прибытия рейса в формате ISO 8601.
+          example: "2023-10-26T18:30:00Z"
+        price:
+          type: number
+          format: float
+          description: Цена билета на одного пассажира.
+          example: 550.75
+        availableSeats:
+          type: integer
+          format: int32
+          description: Количество доступных мест на рейсе.
+          example: 150
+    PassengerDetails:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - dateOfBirth
+      properties:
+        passengerId:
+          type: string
+          format: uuid
+          description: Уникальный идентификатор пассажира внутри бронирования (генерируется при создании бронирования).
+          readOnly: true
+          example: "p1a2s3s4-e5n6-7g8e-r90a-bcdef12345"
+        firstName:
+          type: string
+          description: Имя пассажира.
+          example: "Ivan"
+        lastName:
+          type: string
+          description: Фамилия пассажира.
+          example: "Ivanov"
+        dateOfBirth:
+          type: string
+          format: date
+          description: Дата рождения пассажира в формате YYYY-MM-DD.
+          example: "1990-01-15"
+        passportNumber:
+          type: string
+          description: Номер паспорта пассажира.
+          example: "1234 567890"
+        seatNumber:
+          type: string
+          description: Выбранный номер места для пассажира.
+          example: "12A"
+    ContactInfo:
+      type: object
+      required:
+        - email
+        - phone
+      properties:
+        email:
+          type: string
+          format: email
+          description: Адрес электронной почты для связи.
+          example: "ivanov@example.com"
+        phone:
+          type: string
+          description: Номер телефона для связи.
+          example: "+79012345678"
+    BookingRequest:
+      type: object
+      required:
+        - flightId
+        - passengers
+        - contactInfo
+      properties:
+        flightId:
+          type: string
+          format: uuid
+          description: Идентификатор рейса, который бронируется.
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        passengers:
+          type: array
+          description: Список данных пассажиров.
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PassengerDetails"
+        contactInfo:
+          $ref: "#/components/schemas/ContactInfo"
+    BookingUpdateRequest:
+      type: object
+      properties:
+        contactInfo:
+          $ref: "#/components/schemas/ContactInfo"
+          description: Обновленная контактная информация.
+        seatAssignments:
+          type: array
+          description: Обновленные назначения мест для пассажиров.
+          items:
+            type: object
+            required:
+              - passengerId
+              - seatNumber
+            properties:
+              passengerId:
+                type: string
+                format: uuid
+                description: Идентификатор пассажира в рамках бронирования.
+                example: "p1a2s3s4-e5n6-7g8e-r90a-bcdef12345"
+              seatNumber:
+                type: string
+                description: Новый номер места для пассажира.
+                example: "15F"
+    Booking:
+      type: object
+      required:
+        - bookingId
+        - flightId
+        - bookingDate
+        - status
+        - totalPrice
+        - passengers
+        - contactInfo
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+          description: Уникальный идентификатор бронирования.
+          readOnly: true
+          example: "01234567-89ab-cdef-1234-567890abcdef"
+        flightId:
+          type: string
+          format: uuid
+          description: Идентификатор забронированного рейса.
+          readOnly: true
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        bookingDate:
+          type: string
+          format: date-time
+          description: Дата и время создания бронирования.
+          readOnly: true
+          example: "2023-10-25T14:30:00Z"
+        status:
+          type: string
+          enum:
+            - CONFIRMED
+            - PENDING
+            - CANCELLED
+            - COMPLETED
+          description: Текущий статус бронирования.
+          readOnly: true
+          example: "CONFIRMED"
+        totalPrice:
+          type: number
+          format: float
+          description: Общая стоимость бронирования.
+          readOnly: true
+          example: 1101.50
+        passengers:
+          type: array
+          description: Список данных пассажиров, включенных в бронирование.
+          items:
+            $ref: "#/components/schemas/PassengerDetails"
+        contactInfo:
+          $ref: "#/components/schemas/ContactInfo"
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Код ошибки.
+          example: "FLIGHT_NOT_FOUND"
+        message:
+          type: string
+          description: Детальное сообщение об ошибке.
+          example: "Рейс с ID a1b2c3d4-e5f6-7890-1234-567890abcdef не найден."
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Для аутентификации используется JWT токен.
+        Передайте токен в заголовке `Authorization` в формате `Bearer <token>`.
+```
